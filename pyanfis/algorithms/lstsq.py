@@ -33,7 +33,7 @@ class LSTSQ(torch.nn.Module):
     def forward(
             self,
             x: torch.Tensor,
-            y: torch.Tensor|None = None
+            y: torch.Tensor
         ) -> None:
         """
         Compute a new value of 'theta'.
