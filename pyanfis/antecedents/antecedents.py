@@ -71,4 +71,4 @@ class Antecedents(torch.nn.Module):
             dim=2,
         )
 
-        return torch.nan_to_num(fuzzy, nan=1.0)
+        return torch.nan_to_num(fuzzy, nan = 1.0)
