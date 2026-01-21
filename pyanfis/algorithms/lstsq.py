@@ -3,16 +3,16 @@ import torch
 
 class LSTSQ(torch.nn.Module):
     """
-    Computes the vector x that approximately solves the equation a @ x = b.
+    Computes the vector x that approximately solves the equation a @ x = b
 
     Attributes
     ----------
     n_vars : int
-        number of variables.
+        number of variables
     alpha : float
-        alpha value for updating theta.
+        alpha value for updating theta
     driver: str
-        driver for the lstsq algorithm.
+        driver for the lstsq algorithm
     """
     __slots__ = [
         "theta",
@@ -36,7 +36,7 @@ class LSTSQ(torch.nn.Module):
             y: torch.Tensor
         ) -> None:
         """
-        Compute a new value of 'theta'.
+        Compute a new value of 'theta'
 
          Attributes
         ----------
