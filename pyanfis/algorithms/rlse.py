@@ -12,26 +12,71 @@ class RLSE(torch.nn.Module):
         length of the "x" vector
     initial_gamma : float
         big number to initialise the "S" matrix
-
-    Returns
-    -------
-    torch.tensor
-        a tensor of equal size to the input tensor
     """
-    __slots__ = ["s", "theta", "gamma"]
-    def __init__(self, n_vars: int, gamma: float = 1000.0):
-        super().__init__() # type: ignore
-        self.s: torch.Tensor = torch.eye(n_vars, dtype=torch.float32, requires_grad=False) * gamma
-        self.theta: torch.Tensor = torch.zeros((n_vars, 1), dtype=torch.float32)
-        self.gamma: float = 1000.0
-    def forward(self, a_matrix: torch.Tensor, b_matrix: torch.Tensor):
-        """Recursive least squares estimate operation"""
-        batch, row, _ = a_matrix.size()
-        for ba in range(batch):
-            for i in range(row):
-                a: torch.Tensor = a_matrix[ba, i, :].view(1, -1)
-                b: torch.Tensor = b_matrix[ba, i].unsqueeze(0)
-                self.s.add_(- (torch.matmul(torch.matmul(torch.matmul(self.s, a.T), a), self.s))\
-                            / (1 + torch.matmul(torch.matmul(a, self.s), a.T)))
-                self.theta.add_(torch.matmul(self.s,\
-                                torch.matmul(a.T, (b - torch.matmul(a, self.theta)))))
+    __slots__ = [
+        "s",
+        "theta",
+        "gamma"
+    ]
+
+    def __init__(
+            self,
+            n_vars: int,
+            gamma: float = 0.99
+        ):
+        super().__init__()
+        self.s = torch.eye(
+            n_vars,
+            dtype = torch.float32,
+            requires_grad = False
+        ) * gamma
+
+        self.theta = torch.nn.Parameter(
+            torch.zeros(
+                (n_vars, 1),
+                dtype = torch.float32
+            ),
+            requires_grad = False
+        )
+
+        self.gamma = gamma
+
+    def forward(
+            self,
+            x: torch.Tensor,
+            y: torch.Tensor
+        ) -> None:
+        """
+        RLSE by minimizing the weighted least squares cost function
+        using the Kalman filter framework.
+
+        Attributes
+        ----------
+        x : torch.Tensor
+            tensor with values multipliers to variables
+        y : torch.Tensor
+            tensor with values that are results
+        """
+        input_rows = x.reshape(x.size(0), -1).float()
+
+        for row, col in zip(input_rows, y):
+
+            # Unsqueeze for easier computation
+            i = row.unsqueeze(-1) #5, 1
+
+            # Kalman Gain
+            s_x = self.s @ i
+            denominator = self.gamma + i.T @ s_x
+            K = s_x / denominator # 5, 5
+            
+            # Update theta
+            error = col -  self.theta.T @ i # 1, 1
+            self.theta.add_(
+                K * error # 5, 1
+            )
+            
+            # Update P
+            numerator = self.s - (K @ i.T @ self.s)
+            self.s = (numerator) * self.gamma
+
+        return None
