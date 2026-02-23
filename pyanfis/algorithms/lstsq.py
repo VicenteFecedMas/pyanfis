@@ -45,12 +45,17 @@ class LSTSQ(torch.nn.Module):
         y : torch.Tensor
             tensor with values that are results
         """
-        for _ in range(x.size(0)):
-            new_theta = torch.linalg.lstsq(x, y, driver=self.driver).solution
+        new_theta = torch.linalg.lstsq(
+            x,
+            y,
+            driver = self.driver
+        ).solution
 
-            if new_theta.dim() > 2:
-                new_theta = new_theta.mean(dim=0)
-                
-            self.theta = (1 - self.alpha) * self.theta + self.alpha * new_theta
+        if new_theta.dim() > 2:
+            new_theta = new_theta.mean(
+                dim = 0
+            )
+            
+        self.theta = (1 - self.alpha) * self.theta + self.alpha * new_theta
 
         return None
