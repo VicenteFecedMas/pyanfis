@@ -107,14 +107,14 @@ class ANFIS():
             Output of the ANFIS
         """
         fuzzyfied = self.antecedents(x)
-        print(fuzzyfied)
+
         related = self.rules_neuron(
             x = fuzzyfied,
             rules = self.rules_base.rules["Antecedents"]
         )
-        print(related)
+
         normalized = self.normalize(related)
-        print(normalized)
+
         output = self.consequents(
             x_normalized = normalized,
             x = x,
