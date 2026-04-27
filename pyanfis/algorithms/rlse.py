@@ -1,7 +1,11 @@
 """rlse algorithm to compute a set of parameters given the input and output variables"""
-import torch
+from dataclasses import dataclass, field
 
-class RLSE(torch.nn.Module):
+import numpy
+
+
+@dataclass(slots = True)
+class RLSE():
     """
     Computes the vector x that approximately solves the equation a @ x = b
     using a recursive approach
@@ -13,70 +17,85 @@ class RLSE(torch.nn.Module):
     initial_gamma : float
         big number to initialise the "S" matrix
     """
-    __slots__ = [
-        "s",
-        "theta",
-        "gamma"
-    ]
+    s: list[list[int | float]] = field(init = False)
+    theta: list[int | float] = field(init = False)
+    gamma: int | float
+    n_vars: int = field(repr = False)
 
-    def __init__(
+    def __post_init__(self) -> None:
+        
+        self.s = [
+            [
+                self.gamma
+                if i == j
+                else 0
+                for j
+                in range(self.n_vars)
+            ]
+            for
+            i in range(self.n_vars)
+        ]
+
+        self.theta = [
+            0
+            for _
+            in range(self.n_vars)
+        ]
+
+        del self.n_vars
+
+    def transpose(m):
+        return list(
+              map(
+                    list,
+                    zip(*m)
+                )
+            )
+
+def multiply_matrix_by_vector(
             self,
-            n_vars: int,
-            gamma: float = 0.99
-        ):
-        super().__init__()
-        self.s = torch.eye(
-            n_vars,
-            dtype = torch.float32,
-            requires_grad = False
-        ) * gamma
-
-        self.theta = torch.nn.Parameter(
-            torch.zeros(
-                (n_vars, 1),
-                dtype = torch.float32
-            ),
-            requires_grad = False
-        )
-
-        self.gamma = gamma
-
-    def forward(
+            matrix: list[list[int | float]],
+            vector: list[float]
+        ) -> list[list[int | float]]:
+        return [
+            [
+                a * b
+                for a, b
+                in zip(row, vector)
+            ]
+            for row
+            in matrix
+        ]
+    
+    def update_theta(
             self,
-            x: torch.Tensor,
-            y: torch.Tensor
+            x: dict[str, int | float],
+            y: dict[str, int | float]
         ) -> None:
         """
         RLSE by minimizing the weighted least squares cost function
         using the Kalman filter framework.
-
-        Attributes
-        ----------
-        x : torch.Tensor
-            tensor with values multipliers to variables
-        y : torch.Tensor
-            tensor with values that are results
         """
-        input_rows = x.reshape(x.size(0), -1).float()
+        #input_rows = x.reshape(x.size(0), -1).float()
+        #for row, col in zip(input_rows, y):
 
-        for row, col in zip(input_rows, y):
+        # Unsqueeze for easier computation
+        x_array = [i for i in x.values() ]
 
-            # Unsqueeze for easier computation
-            i = row.unsqueeze(-1) #5, 1
 
-            # Kalman Gain
-            s_x = self.s @ i
-            denominator = self.gamma + i.T @ s_x
-            K = s_x / denominator # 5, 5
-            
-            # Update theta
-            error = col -  self.theta.T @ i # 1, 1
-            self.theta.add_(
-                K * error # 5, 1
-            )
-            
-            # Update P
-            numerator = self.s - (K @ i.T @ self.s)
-            self.s = (numerator) * self.gamma
+        # Kalman Gain
+        s_x = self.s @ i
+        denominator = self.gamma + i.T @ s_x
+        K = s_x / denominator # 5, 5
+        
+        # Update theta
+        error = col -  self.theta.T @ i # 1, 1
+        self.theta.add_(
+            K * error # 5, 1
+        )
+        
+        # Update P
+        numerator = self.s - (K @ i.T @ self.s)
+        self.s = (numerator) * self.gamma
 
         return None

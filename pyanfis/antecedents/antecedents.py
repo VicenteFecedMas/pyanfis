@@ -1,74 +1,56 @@
 """Antecedents class, it is a group of Universes"""
+from dataclasses import dataclass, field
 from typing import Any
-
-import torch
 
 from pyanfis.functions import Universe
 
-class Antecedents(torch.nn.Module):
+
+@dataclass(slots = True)
+class Antecedents():
     """
     Class used to store the antecedents
 
     Attributes
     ----------
+    config_universes: dict[str, Any]
+        Configuration of the universes in the Antecedents
     universes : dict
         dict where all the universes are going to be stored
-    
-    Methods
-    -------
-    automf(n_func)
-        automatically asign equally spaced functions to all the 
-        universes inside the antecedents
     """
-    __slots__ = [
-        "universes"
-    ]
+    config_universes: dict[str, Any] = field(repr = False)
+    universes: dict[str, Universe] = field(init = False)
 
-    def __init__(
-            self,
-            universes: dict[str, Any]
+    def __post_init__(
+            self
         ) -> None:
-        super().__init__()
-        self.universes: dict[str, Universe] = {
+
+        self.universes = {
             name: Universe(**values)
             for name, values
-            in universes.items()
+            in self.config_universes.items()
         }
 
-    def automf(
-            self,
-            n_func: int = 2
-        ) -> None:
-        """
-        Automatically asign equally spaced functions to all the 
-        universes inside the antecedents
+        del self.config_universes
 
-        Attributes
-        ----------
-        n_func : int
-            number of functions per universe
-        """
-        for key in self.universes.keys():
-            self.universes[key].automf(n_func=n_func)
-
-    def forward(
+    def __call__(
             self ,
-            x: torch.Tensor
-        ) -> torch.Tensor:
+            x: dict[str, int | float]
+        ) -> dict[str, dict[str, float]]:
         """
         Forward pass of antecedents, returns parsed antecedents
 
-        Attributes
+        Parameters
         ----------
-        x : torch.Tensor
-            tensor with values multipliers to variables
-        """
-        fuzzy = torch.cat(
-            [
-                universe(x[:, :, i:i+1])
-                for i, universe in enumerate(self.universes.values())
-            ],
-            dim=2,
-        )
+        x: dict[str, int | float]
+            Dict with inputs, per input
 
-        return torch.nan_to_num(fuzzy, nan = 1.0)
+        Returns
+        -------
+        dict[str, dict[str, float]]:
+            Dict with output of the antecedents
+        """
+        return {
+                name: universe(x[name])
+                for name, universe
+                in self.universes.items()
+        }

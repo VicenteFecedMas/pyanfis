@@ -1,7 +1,8 @@
 # pyanfis
 
 ## Introduction
-Welcome to pyanfis! here you will be able to find a project that will allow you to use **Fuzzy Logic** in conjunction with pytorch.
+Welcome to pyanfis! here you will be able to find a project that will allow you to use **Fuzzy Logic** with plain Python!
+
 This framework is based on [Jang's](https://www.researchgate.net/publication/3113825_ANFIS_Adaptive-Network-based_Fuzzy_Inference_System?enrichId=rgreq-15825cac70a3ae795992310484420cab-XXX&enrichSource=Y292ZXJQYWdlOzMxMTM4MjU7QVM6MTU5MDc1MDY1MTQ3MzkyQDE0MTQ5Mzc4NTk3MzI%3D&el=1_x_2&_esc=publicationCoverPdf).
 
 ## Why should I use pyanfis?
@@ -21,12 +22,4 @@ You should use pyanfis if:
 Currently pyanfis has only been tested can be used to solve prediction problems and control problems. In future updates, it will be posible to use it in conjunction with convolutional layers to classify images or to substitude encoders/decoders in different applications.
 
 ## How can I install pyanfis?
-You just need to use on your terminal:
-
-```bash
-pip install pyanfis
-```
-or
-```bash
-pip3 install pyanfis
-```
+For now download the repo and access it as you would access a normal code module. If you need more info just contact me!

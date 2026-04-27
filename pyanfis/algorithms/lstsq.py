@@ -30,7 +30,7 @@ class LSTSQ(torch.nn.Module):
         self.alpha = alpha
         self.driver = driver
 
-    def forward(
+    def update_theta(
             self,
             x: torch.Tensor,
             y: torch.Tensor

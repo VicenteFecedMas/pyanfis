@@ -1,7 +1,7 @@
 """This class will the hold the neuron that relate fuzzy numbers given a set of rules"""
-from typing import Callable
+from dataclasses import dataclass, field
+from typing import Any
 import torch
-
 from .intersection_algorithms import larsen, mamdani
 
 INTERSECTIONS = {
@@ -9,44 +9,57 @@ INTERSECTIONS = {
     "mamdani": mamdani,
 }
 
-class RulesNeuron(torch.nn.Module):
+
+@dataclass(slots = True)
+class RulesNeuron():
     """
-    This class will contain all the rules of the system,
-    it will dictate how each one of the antecedent functions
-    relate with each other.
+    Holds all the logic to intersect fuzzy numbers, per rule
 
     Attributes
     ----------
-    intersection : str
-        intersection algorithm that is going to be used
-
-    Methods
-    -------
-    generate_rules(n_membership_functions_per_universe)
-        generate the rules of the universe
-    relate_fuzzy_numbers(fuzzy_numbers_matrix)
-        parse each input through the set of established rules
-
-    Returns
-    -------
-    torch.tensor
-        a tensor of size [n_batches, n_lines, n_functions]
-
-    Examples
-    --------
+    intersection_type:str
+        Name of the type of intersection
+    intersection: Any
+        Intersection algorithm
     """
-    __slots__ = ["intersection_type", "intersection"]
-    def __init__(
-            self,
-            intersection_type: str = "larsen"
+    intersection_type:str = field(repr = False)
+    intersection: Any = field(init = False)
+
+    def __post_init__(
+            self
         ) -> None:
-        super(). __init__() # type: ignore
-        self.intersection_type: str = intersection_type
-        self.intersection: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = (
-            INTERSECTIONS[self.intersection_type]
-        )
-    def forward(self, x: torch.Tensor, active_antecedents_rules: torch.Tensor) -> torch.Tensor:
-        """Relation of fuzzy numbers using rules"""
-        related_nums: torch.Tensor = x[..., None] * active_antecedents_rules[None, None, ...]
-        x = self.intersection(related_nums, active_antecedents_rules)
-        return x[:, :, :, 0]
+        self.intersection = INTERSECTIONS[self.intersection_type]
+
+        del self.intersection_type
+
+    def __call__(
+            self,
+            x: dict[str, dict[str, float]],
+            rules: dict[str, tuple[tuple[str, str]]]
+        ) -> dict[str, float]:
+        """
+        Relate fuzzy numbers using rules
+
+        Parameters
+        ----------
+        x: dict[str, dict[str, float]]
+            Fuzzyfied numbers
+        rules: dict[str, tuple[tuple[str, str]]]
+            Antecedent part of the rules
+
+        Returns
+        -------
+        dict[str, float]:
+            Related fuzzy numbers per rule
+        """
+        x_intersected = {
+            name: [
+                x[universe][function]
+                for universe, function
+                in values
+            ]
+            for name, values
+            in rules.items()
+        }
+
+        return self.intersection(x_intersected)

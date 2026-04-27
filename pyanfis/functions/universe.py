@@ -1,122 +1,107 @@
 """Universe class, it encapsulates several functions related to a variable"""
-from typing import Optional, Union, Any
-import torch
+from dataclasses import dataclass, field
+from typing import Any
 
-from .utils import init_parameter
+from .sigmoid import Sigmoid
 from .gauss import Gauss
+from .bell import Bell
+from .linear_z import LinearZ
+from .linear_s import LinearS
+from .triangular import Triangular
 
-class Universe(torch.nn.Module):
+FUNCTION_MAPPING = {
+    "Sigmoid": Sigmoid,
+    "Gauss": Gauss,
+    "Bell": Bell,
+    "LinearZ": LinearZ,
+    "LinearS": LinearS,
+    "Triangular": Triangular
+}
+
+
+@dataclass(slots = True)
+class Universe():
     """
-    This class is used to define the range in which a variable
-    is going to be defined in a fuzzy way, it is composed of
-    several functions used to describe it. 
+    A Universe encapsulate several functions related to an input
 
     Attributes
     ----------
-    x : torch.Tensor
-        input batched data of one variable
-    name : str
-        name of the universe
-    merge : bool
-        if True, the functions that cover simmilar area will merge
-    heaviside :
-        if True, the functions on the sides will become Heaviside
-    universe : dict
-        dict where all the functions are going to be stored
-    
-    Methods
-    -------
-    get_centers_and_intervals(n_func)
-        get the centers and intervals given a max and a min
-    automf(n_func)
-        generate automatically gauss functions inside a universe
-
-    Returns
-    -------
-    torch.tensor
-        a tensor of size [n_batches, n_lines, n_functions]
+    config_functions: dict[str, Any]
+        Configuration of the universe
+    functions: dict[str, Any]
+        Functions inside the universe
+    maximum: float
+        Maximum boundary of the universe
+    minimum: float
+        Minimum boundary of the universe
     """
-    __slots__ = ["min", "max", "_range", "name", "functions"]
-    def __init__(
-            self,
-            name: Optional[str] = None,
-            range: tuple[
-                Optional[Union[int, float]],
-                Optional[Union[int, float]]
-            ] = None,
-            functions: dict[str, Any] = {}
+    config_functions: dict[str, Any] = field(repr = False)
+    functions: dict[str, Any] = field(init = False)
+    maximum: float
+    minimum: float
+
+    def __post_init__(
+            self
         ) -> None:
-        super().__init__() # type: ignore
-        self.min: Optional[Union[int, float]] = None
-        self.max: Optional[Union[int, float]] = None
-        self._range: tuple[
-            Optional[Union[int, float]],
-            Optional[Union[int, float]]
-        ] = (None, None)
-        initial_range:tuple[
-            Optional[Union[int, float]],
-            Optional[Union[int, float]]
-        ] = range
-        self.range = initial_range
-        self.name: str = name
-        self.functions: dict[str, Any] = {
-            fn_name: self._load_function(vals["type"], vals["parameters"])
-            for fn_name, vals in functions.items()
-        }
-    @property
-    def range(self) -> tuple[
-            Optional[Union[int, float]],
-            Optional[Union[int, float]]
-        ]:
-        """Sets the value of the range"""
-        return self._range
-    @range.setter
-    def range(self,value: tuple[Optional[Union[int, float]],Optional[Union[int, float]]]) -> None:
-        """Assigns max and min given a range"""
-        if not isinstance(value[0], (int, float)) or not isinstance(value[1], (int, float)):
-            raise ValueError(f"Range must have values assigned.")
-        if len(value) != 2:
-            raise ValueError(f"Expected 2 numbers but got {len(value)}.")
-        if value[0]>value[1]:
-            raise ValueError(f"First value: {value[0]} must be smaller than second: {value[1]}.")
-        self._range = value
-        self.min = self._range[0]
-        self.max = self._range[1]
-    def _load_function(self, f_type: str, f_params: dict[str, Any]) -> torch.nn.Module:
-        """loads a function given a name and its params"""
-        try:
-            module = __import__("pyanfis.functions", fromlist=[f_type])
-            imported_f =  getattr(module, f_type)()
-        except ImportError as exc:
-            raise ImportError(f"Class {f_type} not found in the 'functions' folder.") from exc
-        for name, value in f_params.items():
-            imported_f.__setitem__(name, init_parameter(value))
-        return imported_f
-    def get_centers_and_intervals(
-            self,
-            n_func: int) -> tuple[list[Union[int, float]], list[Union[int, float]]]:
-        """Returns centers and intervals of each function"""
-        if not self.min or not self.max:
-            raise ValueError(f"A range must be assigned. Got ({self.min}, {self.max})")
-        interval: Union[int, float] = (self.max - self.min)/ (n_func - 1)
-        return (
-            [float(self.min + interval * i) for i in range(n_func)],
-            [float(interval) for _ in range(n_func)]
-        )
-    def automf(self, n_func: int=2):
-        """Automatically generate a set of n_func functions inside universe"""
-        if not self.max or  not self.min:
-            raise ValueError(f"A range must be assigned. Got ({self.min}, {self.max})")
-        centers, intervals = self.get_centers_and_intervals(n_func=n_func)
+
         self.functions = {
-            f"Gauss_{i}": Gauss(mean=center, std=interval)
-            for i, (center, interval) in enumerate(zip(centers, intervals))
+            name: self._load_function(
+                values["type"],
+                values["parameters"]
+            )
+            for name, values
+            in self.config_functions.items()
         }
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass inside a universe"""
+
+        del self.config_functions
+
+    def _load_function(
+            self,
+            function_type: str,
+            function_parameters: dict[str, Any]
+        ) -> Any:
+        """
+        Returns a function given a name and its parameters
+
+        Parameters
+        ----------
+        function_type: str
+            Type of function to be loaded
+        function_parameters: dict[str, Any]
+            Parameters to load into into the function
+
+        Returns
+        -------
+        Any:
+            Any given function valid for the ANFIS
+        """
+        if function_type not in FUNCTION_MAPPING:
+            raise ImportError(f"Class {function_type} not found in the 'functions' folder.")
+
+        return FUNCTION_MAPPING[function_type](**function_parameters)
+
+    def __call__(
+            self,
+            x: int | float
+        ) -> dict[str, float]:
+        """
+        Returns input parsed through a Universe
+        
+        Parameters
+        ----------
+        x: int | float
+            Value to be transformed
+            
+        Returns
+        -------
+        dict[str, float]:
+            Parsed parameters through a Universe
+        """
         if not self.functions:
             raise ValueError("Forward pass impossible, universe contains no functions")
-        fuzzy = torch.empty(0, dtype=x.dtype, device=x.device)
-        for function in self.functions.values():
-            fuzzy = torch.cat((fuzzy, function(x)), dim=2)
-        return fuzzy
+
+        return {
+            name: function(x)
+            for name, function
+            in self.functions.items()
+        }

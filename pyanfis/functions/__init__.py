@@ -7,4 +7,4 @@ from .linear_z import LinearZ
 from .linear_s import LinearS
 from .triangular import Triangular
 
-__all__ = ["Universe", "Sigmoid", "Gauss", "Bell", "LinearZ", "LinearS", "Triangular", "Heaviside"]
+__all__ = ["Universe", "Sigmoid", "Gauss", "Bell", "LinearZ", "LinearS", "Triangular"]

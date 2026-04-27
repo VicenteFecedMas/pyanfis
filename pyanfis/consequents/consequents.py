@@ -1,56 +1,77 @@
 """Here you decide which type of consequents you will use"""
-from typing import Any, Optional
-import torch
+from dataclasses import dataclass, field
+from typing import Any
 
-from .types import TakagiSugeno, Tsukamoto
+from pyanfis.consequents.types import  Tsukamoto
 
-CONSEQUENTS: dict[str, Any] = {
-    "Takagi-Sugeno": TakagiSugeno,
+CONSEQUENT_MAPPING: dict[str, Any] = {
     "Tsukamoto": Tsukamoto
 }
 
-class Consequents(torch.nn.Module):
+
+@dataclass(slots = True)
+class Consequents():
     """
-    This class will contain all the different types of
-    consequents.
+    This class will contain all the different types of consequents.
 
     Attributes
     ----------
-    intersection : str
-        intersection algorithm that is going to be used
-
-    Methods
-    -------
-    generate_rules(n_membership_functions_per_universe)
-        generate the rules of the universe
-    relate_fuzzy_numbers(fuzzy_numbers_matrix)
-        parse each input through the set of established rules
-
-    Returns
-    -------
-    torch.tensor
-        a tensor of size [n_batches, n_lines, n_functions]
+    universes : dict[str, Any]
+        Universes in the consequents layer
+    universes_can_have_forward_updates: dict[str, bool]
+        Flags if a universe can be updated on the forward propagation
+    config_consequents: dict[str, Any]
+        Configuration of the universes
+    consequent_rules: dict[str, list[str]]
+        Rules of the consequents
     """
-    __slots__ = ["universes"]
-    def __init__(self, universes: dict[str, Any]):
-        super().__init__() #type: ignore
+    universes: dict[str, Any] = field(init = False)
+    config_consequents: dict[str, Any] = field(repr = False)
+    consequent_rules: dict[str, list[str]] = field(repr = False)
+
+    def __post_init__(
+            self
+        ) -> None:
+        
         self.universes = {
-            name: CONSEQUENTS[values["type"]](values["parameters"])
-            for name, values in universes.items()
+            name: CONSEQUENT_MAPPING[values["type"]](
+                **{"config_universe": values["parameters"], "consequent_rules": self.consequent_rules[name]}
+            )
+            for name, values
+            in self.config_consequents.items()
         }
-    def forward(
+
+        del self.config_consequents
+        del self.consequent_rules
+
+    def __call__(
             self,
-            f: torch.Tensor,
-            rules: dict[str, Any],
-            x: Optional[torch.Tensor] = None,
-            y: Optional[torch.Tensor] = None
-        ) -> torch.Tensor:
-        """Forward pass of all the consequents"""
-        output: torch.Tensor = torch.stack(
-            [
-                self.universes[key](f, torch.tensor(rules[key], requires_grad=False), x, y)
-                for key in rules.keys()
-            ]
-        )
-        output[torch.isnan(output)] = 0
-        return output
+            x_normalized: dict[str, float],
+            x: dict[str, int | float] | None,
+            y: dict[str, int | float] | None,
+        ) -> dict[str, float]:
+        """
+        Returns all parameters parsed through the respective consequents
+
+        Parameters
+        ----------
+        x_normalized: dict[str, float]
+            Normalized rules
+        x: dict[str, int | float] | None
+            Input parameters
+        y: dict[str, int | float] | None
+            Result of the computations over the input parameters
+
+        Returns
+        -------
+        dict[str, float]:
+            Result per output universe
+        """
+        return {
+            name: universe(
+                x_normalized = x_normalized
+            )
+            for name, universe
+            in self.universes.items()
+        }
+    

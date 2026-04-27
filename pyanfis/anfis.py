@@ -1,67 +1,123 @@
 """Main class of ANFIS"""
-from typing import Any, Iterator
-import torch
+from dataclasses import dataclass, field
+from typing import Any
 
-from pyanfis.utils import InputParser
 from pyanfis.antecedents import Antecedents
 from pyanfis.rules import RulesBase, RulesNeuron
 from pyanfis.consequents import Consequents
-from pyanfis.consequents.types import TakagiSugeno
 
-class ANFIS(torch.nn.Module):
-    """Main ANFIS class, used to make predictions"""
-    __slots__ = ["antecedents", "rules", "normalisation", "consequents", "input_parser"]
-    def __init__(
+
+@dataclass(slots = True)
+class ANFIS():
+    """
+    Main ANFIS class, used to make predictions
+    
+    Attributes
+    ----------
+    antecedents: Antecedents
+        Antecedents part of the ANFIS
+    rules_base: RulesBase
+        Place where all the rules are going to be stored
+    rules_neuron: RulesNeuron
+        Computations performed in the rules layer
+    consequents: Consequents
+        Consequents part of the ANFIS
+    config_antecedents: dict[str, Any]
+        Configuration of the Antecedents
+    config_rules: dict[str, Any]
+        Configuration of the Rules
+    config_consequents: dict[str, Any]
+        Configuration of the Consequents
+    """
+    antecedents: Antecedents = field(init = False)
+    rules_base: RulesBase = field(init = False)
+    rules_neuron: RulesNeuron = field(init = False)
+    consequents: Consequents = field(init = False)
+    config_antecedents: dict[str, Any] = field(repr = False)
+    config_rules: dict[str, Any] = field(repr = False)
+    config_consequents: dict[str, Any] = field(repr = False)
+
+    def __post_init__(self) -> None:
+        self.antecedents = Antecedents(
+            self.config_antecedents
+        )
+        self.rules_base = RulesBase(
+            rules_list = self.config_rules["rules"],
+            config_antecedents = self.config_antecedents,
+            config_consequents = self.config_consequents
+
+        )
+        self.rules_neuron = RulesNeuron(
+            intersection_type = self.config_rules["intersection_type"]
+        )
+        self.consequents = Consequents(
+            config_consequents = self.config_consequents,
+            consequent_rules = self.rules_base.rules["Consequents"]
+        )
+
+        del self.config_antecedents
+        del self.config_rules
+        del self.config_consequents
+
+    def normalize(
             self,
-            antecedents: dict[str, Any],
-            rules: dict[str, Any],
-            consequents: dict[str, Any]
-            ) -> None:
-        super().__init__() # type: ignore
-        self.antecedents = Antecedents(antecedents)
-        self.rules_base = RulesBase(rules["rules_base"], antecedents, consequents)
-        self.rules_neuron = RulesNeuron(rules["intersection"])
-        self.normalisation = torch.nn.functional.normalize
-        # To make the input data more compact and not require to introduce those 2 params explicitly
-        for name, values in consequents.items():
-            if values.get("type") == "Takagi-Sugeno":
-                consequents[name]["parameters"].update({
-                    "n_inputs": len(antecedents),
-                    "n_rules": len(self.rules_base.active_antecedents_rules) # type: ignore
-                    })
-        self.consequents = Consequents(consequents)
-        self.input_parser = InputParser(
-            [value["name"] for value in antecedents.values()],
-            [value["parameters"]["name"] for value in consequents.values()]
-            )
-    def parameters(self, recurse: bool=True) -> Iterator[torch.nn.Parameter]:
-        """Get parameters of the ANFIS"""
-        if not recurse:
-            params: list[torch.nn.Parameter] = []
-            return iter(params)
-        parameters: list[torch.nn.Parameter] = []
-        # Antecedents parameters
-        for universe in self.antecedents.universes.values():
-            for function in universe.functions.values():
-                for param in function.parameters():
-                    parameters.append(param)
-        # Consequent parameters
-        for universe in self.consequents.universes.values():
-            if isinstance(universe, TakagiSugeno) and universe.parameters_update == "backward":
-                parameters.append(universe.theta)
-            else:
-                for function in universe.universe.functions.values():
-                    for param in function.parameters():
-                        parameters.append(param)
-        return iter(parameters)
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Forward pass of the ANFIS system"""
-        f = self.antecedents(x)
-        f = self.rules_neuron(f, self.rules_base.active_antecedents_rules)
-        f = self.normalisation(f, dim=2, p=1)
-        output = self.consequents(f, self.rules_base.active_consequents_rules, x, y)
+            rules: dict[str, float]
+        ) -> dict[str, float]:
+        """
+        Normalize a set of related rules
+        
+        Parameters
+        ----------
+        rules: dict[str, float]
+            Related rules
+            
+        Returns
+        -------
+        dict[str, float]:
+            Normalized rules
+        """
+        denominator = sum([
+            number for number in rules.values()
+        ])
+
+        return {
+            name: value / denominator
+            for name, value
+            in rules.items()
+        }
+
+    def __call__(
+            self,
+            x: dict[str, int | float],
+            y: dict[str, int | float] | None = None
+        ) -> dict[str, int | float]:
+        """
+        Forward pass but with the added preprocessing
+
+        Parameters
+        ----------
+        x: dict[str, int | float]
+            Input parameters
+        y: dict[str, int | float] | None
+            Result of the inputs parameters
+
+        Returns
+        -------
+        dict[str, int | float]:
+            Output of the ANFIS
+        """
+        fuzzyfied = self.antecedents(x)
+        print(fuzzyfied)
+        related = self.rules_neuron(
+            x = fuzzyfied,
+            rules = self.rules_base.rules["Antecedents"]
+        )
+        print(related)
+        normalized = self.normalize(related)
+        print(normalized)
+        output = self.consequents(
+            x_normalized = normalized,
+            x = x,
+            y = y
+        )
         return output
-    def __call__(self, *args: dict[str, torch.Tensor], **kwargs: dict[str, torch.Tensor]):
-        """Forward pass but with the added preprocessing"""
-        x, y = self.input_parser.preprocess_inputs(*args, **kwargs)
-        return self.forward(x, y)

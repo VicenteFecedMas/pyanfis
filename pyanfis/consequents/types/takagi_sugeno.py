@@ -1,15 +1,19 @@
 """Consequents that look like a polynome"""
-from typing import Any, Optional
-import torch
+from dataclasses import dataclass, field
+from typing import Any
+
+import numpy
 
 from pyanfis.algorithms import LSTSQ, RLSE
 
-ALGORITHMS: dict[str, Any] = {
+ALGORITHM_MAPPING: dict[str, Any] = {
     "LSTSQ": LSTSQ,
     "RLSE":  RLSE,
 }
 
-class TakagiSugeno(torch.nn.Module):
+
+@dataclass(slots = True)
+class TakagiSugeno():
     """
     This class will compute the learnable parameters using the Takagi-Sugeno approach.
 
@@ -27,30 +31,51 @@ class TakagiSugeno(torch.nn.Module):
     dict
         a dictionary that will contain the prediction related to each output
     """
-    __slots__ = ["algorithm", "parameters_update"]
-    def __init__(self, parameters: dict[str, Any]) -> None:
-        super().__init__() # type: ignore
-        if parameters["algorithm"] not in ALGORITHMS:
-            raise ValueError(f"{parameters["algorithm"]} not in {list(ALGORITHMS.keys())}")
-        self.algorithm = ALGORITHMS[parameters["algorithm"]](
-            (parameters["n_inputs"]+1)*parameters["parameters"]["n_rules"]
+
+    algorithm: LSTSQ | RLSE = field(init = False)
+    config_algorithm: dict[str, Any] = field(repr = False)
+
+    def __post_init__(
+            self
+        ) -> None:
+        if self.config_algorithm["algorithm"] not in ALGORITHM_MAPPING:
+            raise ValueError(f"{self.config_algorithm["algorithm"]} not in {list(ALGORITHM_MAPPING.keys())}")
+        
+        self.algorithm = ALGORITHM_MAPPING[self.config_algorithm["algorithm"]](
+            (self.config_algorithm["n_inputs"] + 1) * self.config_algorithm["n_rules"]
         )
-        self.parameters_update = parameters["parameters_update"]
-    def forward(
+
+    def __call__(
             self,
-            f: torch.Tensor,
-            rules: torch.Tensor,
-            x: torch.Tensor,
-            y: Optional[torch.Tensor] = None):
+            x: dict[str, int | float],
+            x_normalized: dict[str, float],
+            y: dict[str, int | float] | None = None,
+            
+        ):
         """Forward pass of the Takagi-Sugeno consequents"""
-        f = f * rules
-        ones = torch.ones(x.shape[:-1] + (1,), dtype=x.dtype)
-        x = torch.cat([x, ones], dim=-1)
-        x_b, x_i, _ = x.size()
-        output = torch.zeros(f.size(0), f.size(1), 1)
-        x = torch.einsum('bri, brj -> brij', f, x).view(x_b, x_i, -1)
-        if y is not None and self.parameters_update != "backward":
-            # Release gradients to avoid the graph to run 2 time
-            self.algorithm(x.clone().detach(), y.clone().detach())
-        output = output + torch.einsum('bij, jk -> bik', x.float(), self.algorithm.theta)
+
+
+        {
+            rule_name: [
+                i * value
+                for i
+                in x.values()
+            ] + [value]
+            for rule_name, value
+            in x_normalized.items()
+        }
+
+        if y:
+            self.algorithm.update_theta(
+                x = x,
+                y = y
+            )
+            
+
+        output = numpy.einsum(
+            'bij,jk->bik',
+            x,
+            self.algorithm.theta
+        )
+
         return output
