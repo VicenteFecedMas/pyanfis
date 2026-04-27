@@ -1,7 +1,6 @@
 """lstsq algorithm to compute a set of parameters given the input and output variables"""
-import torch
 
-class LSTSQ(torch.nn.Module):
+class LSTSQ():
     """
     Computes the vector x that approximately solves the equation a @ x = b
 
@@ -25,15 +24,14 @@ class LSTSQ(torch.nn.Module):
             alpha: float = 0.001,
             driver: str = 'gels'
         ) -> None:
-        super().__init__()
-        self.theta = torch.zeros((n_vars, 1))
+        #self.theta = torch.zeros((n_vars, 1))
         self.alpha = alpha
         self.driver = driver
 
     def update_theta(
             self,
-            x: torch.Tensor,
-            y: torch.Tensor
+            #x: torch.Tensor,
+            #y: torch.Tensor
         ) -> None:
         """
         Compute a new value of 'theta'
@@ -44,7 +42,7 @@ class LSTSQ(torch.nn.Module):
             tensor with values multipliers to variables
         y : torch.Tensor
             tensor with values that are results
-        """
+        
         new_theta = torch.linalg.lstsq(
             x,
             y,
@@ -57,5 +55,7 @@ class LSTSQ(torch.nn.Module):
             )
             
         self.theta = (1 - self.alpha) * self.theta + self.alpha * new_theta
+        """
 
         return None
+
