@@ -1,0 +1,19 @@
+[project]
+name = "pyanfis"
+version = "0.1.13"
+description = "A Python based library for using ANFIS"
+readme = "README.md"
+license = {
+  file = "LICENSE"
+}
+requires-python = ">=3.11"
+authors = [
+  {
+    name = "Vicente Feced Mas",
+    email = "vicente.feced.mas@gmail.com"
+  }
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/VicenteFecedMas/pyanfis"
