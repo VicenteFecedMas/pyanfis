@@ -22,4 +22,4 @@ You should use pyanfis if:
 Currently pyanfis has only been tested can be used to solve prediction problems and control problems. In future updates, it will be posible to use it in conjunction with convolutional layers to classify images or to substitude encoders/decoders in different applications.
 
 ## How can I install pyanfis?
-For now download the repo and access it as you would access a normal code module. If you need more info just contact me!
+For now download the repo and access it as you would access a normal code module. If you need more info just contact me!!
